@@ -1,16 +1,17 @@
 #!/usr/local/bin/perl -w
 use Tk;
-use lib './blib/lib';
 use Tk::widgets qw/ Thumbnail /;
 use strict;
 
-my $mw=MainWindow->new;
+die "Usage: tkthumb image-file1 image-file2 ..." unless @ARGV;
+
+my $mw = MainWindow->new;
 
 $mw->Scrolled(
     'Thumbnail',
     -images  => [ @ARGV ],
     -ilabels => 1,
-    qw/ -width 300 -height 300 -scrollbars osow/,
+    qw/ -width 300 -height 300 -scrollbars osow /,
 )->pack( qw/ -fill both -expand 1 / );
 
 MainLoop;

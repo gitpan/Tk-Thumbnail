@@ -1,10 +1,10 @@
-$Tk::Thumbnail::VERSION = '1.1';
+$Tk::Thumbnail::VERSION = '1.2';
 
 package Tk::Thumbnail;
 
 use Carp;
 use File::Basename;
-use Tk::widgets qw/ JPEG LabEntry Pane PNG /;
+use Tk::widgets qw/ Animation JPEG LabEntry MultiMediaControls Pane PNG /;
 use base qw/ Tk::Derived Tk::Pane /;
 use vars qw/ $err /;
 use strict;
@@ -28,13 +28,13 @@ sub Populate {
     $self->SUPER::Populate( $args );
 
     $self->ConfigSpecs(
-        -background => [['DESCENDANTS', 'SELF'], 'background', 'Background',   undef],
-        -command    => ['CALLBACK',              'command',    'Command',  \&button1],
-        -iheight    => ['PASSIVE',               'iheight',    'Iheight',         32],
-        -images     => ['PASSIVE',               'images',     'Images',       undef],
-        -ilabels    => ['PASSIVE',               'ilabels',    'Ilabels',          1],
-        -scrollbars => ['PASSIVE',               'scrollbars', 'Scrollbars',  'osow'],
-        -iwidth     => ['PASSIVE',               'iwidth',     'Iwidth',          32],
+        -background => [ [ 'DESCENDANTS', 'SELF' ], 'background', 'Background',   undef ],
+        -command    => [ 'CALLBACK',                'command',    'Command',  \&button1 ],
+        -iheight    => [ 'PASSIVE',                 'iheight',    'Iheight',         32 ],
+        -images     => [ 'PASSIVE',                 'images',     'Images',       undef ],
+        -ilabels    => [ 'PASSIVE',                 'ilabels',    'Ilabels',          1 ],
+        -scrollbars => [ 'PASSIVE',                 'scrollbars', 'Scrollbars',  'osow' ],
+        -iwidth     => [ 'PASSIVE',                 'iwidth',     'Iwidth',          32 ],
     );
 
     $self->OnDestroy(
@@ -48,38 +48,90 @@ sub Populate {
 
 sub button1 {
 
-    my( $label, $file, $bad_photo, $w, $h ) = @_;
+    my( $label, $file, $bad_photo, $w, $h, $animated ) = @_;
     return if $bad_photo;
 
     my $tl = $label->Toplevel;
     $tl->withdraw;
     $tl->title( $file );
     $tl->minsize( 100, 100 );
-    my $p = ( UNIVERSAL::isa( $file, 'Tk::Photo' ) ) ? $file : $tl->Photo( -file => $file );
-    my $sp = $tl->Scrolled( 'Pane' )->pack( qw/ -fill both -expand 1 / );
-    $sp->Label( -image => $p )->pack( qw/ -fill both -expand 1 / );
+
+    my ( $can_del, $p );
+    if( UNIVERSAL::isa( $file, 'Tk::Photo' ) ) {
+	$p = $file;
+	$can_del = 0;
+    } elsif( $animated ) {
+	$p = $tl->Animation( -file => $file, -format => 'gif' );
+	$can_del = 1;
+    } else {
+	$p = $tl->Photo( -file => $file );
+	$can_del = 1;
+    }
     $tl->protocol( 'WM_DELETE_WINDOW' => sub {
-	$p->delete;
+	$p->delete if $can_del;
 	$tl->destroy;
     } );
+
+    my $sp = $tl->Scrolled( qw/ Pane -scrollbars osoe / )->pack( qw/ -fill both -expand 1 / );
+    $sp->Label( -image => $p )->pack( qw/ -fill both -expand 1 / );
+    my $ctrls = $sp->Frame->pack;
+    if( $animated ) {
+	$ctrls->MultiMediaControls(
+
+            # Define, from left to right, the window's controller buttons.
+
+            -buttons                     => [ qw/ home rewind play stop fastforward / ],
+
+            # Define callbacks for the buttons' various states.
+
+            -fastforwardhighlightcommand => [ $p => 'fast_forward',   4 ],
+            -fastforwardcommand          => [ $p => 'fast_forward',   1 ],
+            -homecommand                 => [ $p => 'set_image',      0 ],
+            -pausecommand                => [ $p => 'pause_animation'   ],
+            -playcommand                 => [ $p => 'resume_animation'  ],
+            -rewindhighlightcommand      => [ $p => 'fast_reverse',  -4 ],
+            -rewindcommand               => [ $p => 'fast_reverse',   1 ],
+            -stopcommand                 => [ $p => 'stop_animation'    ],
+
+            # Define callbacks for the left and right arrow keys.
+
+            -leftcommand                 => [ $p => 'prev_image'        ],
+            -rightcommand                => [ $p => 'next_image'        ],
+
+         )->pack;
+    }
+    $ctrls->Button(
+        -text    => 'Get Info',
+        -command => [ \&photo_info, $tl, $file, $p, $w, $h, $animated ],
+    )->pack;
     my( $max_width, $max_height ) = ( $tl->vrootwidth - 100, $tl->vrootheight - 100 );
+    $w += 100;
+    $h += 100;
     $w = ( $w > $max_width )  ? $max_width  : $w;
     $h = ( $h > $max_height ) ? $max_height : $h;
     $tl->geometry( "${w}x${h}" );
     $tl->deiconify;
 
-    $tl->bind( '<Button-1>' => [ \&photo_info, $tl, $file, $p, $w, $h ] );
-
 } # end button1
 
 sub photo_info {
 
-    my( $lbl, $tl, $file, $photo, $w, $h ) = @_;
+    my( $tl, $file, $photo, $w, $h, $animated ) = @_;
 
     my $tl_info = $tl->Toplevel;
+    if( $animated ) {
+	my $fc =  $photo->frame_count;
+	$fc = reverse $fc;
+	$fc =~ s/(\d\d\d)(?=\d)(?!\d*\.)/$1,/g; # commify
+	$fc = scalar reverse $fc;
+	$animated = "$fc frame";
+	$animated .= 's' if $fc > 1;
+    } else {
+	$animated = 'no';
+    }
 
     my $i = $tl_info->Labelframe( qw/ -text Image / )->pack( qw/ -fill x -expand 1 / );
-    foreach my $item ( [ 'Width', $w ], [ 'Height', $h ] ) {
+    foreach my $item ( [ 'Width', $w ], [ 'Height', $h ], [ 'Multi-frame', $animated ] ) {
         my $l = $item->[0] . ':';
         my $le = $i->LabEntry(
             -label        => ' ' x ( 13 - length $l ) . $l,
@@ -95,6 +147,10 @@ sub photo_info {
     my $f = $tl_info->Labelframe( qw/ -text File / )->pack( qw/ -fill x -expand 1 / );
     $file = $photo->cget( -file );
     my $size = -s $file;
+    $size = reverse $size;
+    $size =~ s/(\d\d\d)(?=\d)(?!\d*\.)/$1,/g; # commify
+    $size = scalar reverse $size;
+
     foreach my $item ( [ 'File', $file ], [ 'Size', $size ] ) {
         my $l = $item->[0] . ':';
         my $le = $f->LabEntry(
@@ -140,6 +196,9 @@ sub render {
     my $img = $self->cget( -images );  # reference to list of images
     croak "Tk::Thumbnail: -images not defined." unless defined $img;
 
+    for( my $i = $#{@$img}; $i >= 0; $i--  ) {
+	splice @$img, $i, 1 if -d $img->[$i]; # remove directories
+    }
     my $count = scalar @$img;
     my $rows = int( sqrt $count );
     $rows++ if $rows * $rows != $count;
@@ -151,21 +210,29 @@ sub render {
 
 	    my $bad_photo = 0;
 	    my $i = @$img[$#$img - $count];
-	    my( $photo, $w, $h );
-            Tk::catch { $photo = UNIVERSAL::isa($i, 'Tk::Photo') ? $i :
-		$self->Photo( -file => $i ) };
-	    if ( $@ ) {
+	    my( $photo, $w, $h, $animated );
 
-		# Re-attempt using -format.
-
-		foreach my $f ( qw/ jpeg png / ) {
-		    Tk::catch { $photo = $self->Photo( -file => $i, -format => $f) };   
-		    last if $photo;
-		}
-		unless ( $photo ) {
-		    carp "Tk::Thumbnail: cannot make a Photo from '$i'.";
-		    $photo = $err;
-		    $bad_photo++;
+	    $animated = 0;
+	    if ( UNIVERSAL::isa( $i, 'Tk::Photo' ) ) {
+		$photo = $i;
+	    } else {
+		Tk::catch { $photo = $self->Photo( -file => $i ) };
+		if ( $@ ) {
+		    
+		    # Re-attempt using -format.
+		    
+		    foreach my $f ( qw/ jpeg png / ) {
+			Tkcatch { $photo = $self->Photo( -file => $i, -format => $f) };   
+			last if $photo;
+		    }
+		    unless ( $photo ) {
+			carp "Tk::Thumbnail: cannot make a Photo from '$i'.";
+			$photo = $err;
+			$bad_photo++;
+		    }
+		} else {	# see if animated GIF
+		    Tk::catch { $photo = $self->Animation( -file => $i, -format => 'gif' ) };
+		    $animated = 1 unless $@;
 		}
 	    }
 
@@ -180,6 +247,8 @@ sub render {
                 $sh = int( $sh + 0.5 );
 		$subsample->copy( $photo, -subsample => ( $sw, $sh ) );
 	    } else {
+		$sw = 1 if (1/$sw) < 1;
+		$sh = 1 if (1/$sh) < 1;
 		Tk::catch { $subsample->copy( $photo, -zoom => (1 / $sw, 1 / $sh ) ) };
                 carp "Tk::Thumbnail: error with '$i': $@" if $@;
 	    }
@@ -189,7 +258,7 @@ sub render {
 	    my $l = $f->Label( -image => $subsample )->grid;
 	    
 	    $l->bind( '<Button-1>' => [ $self => 'Callback', '-command',
-				      $l, $i, $bad_photo, $w, $h ] );
+				      $l, $i, $bad_photo, $w, $h, $animated ] );
 	    my $name = $photo->cget( -file );
 	    $name = ( $name ) ? basename( $name ) : basename( $i );
 	    $f->Label( -text => $name )->grid if $lbl;
@@ -233,7 +302,6 @@ sub free_photos {
 } # end free_photos
 
 sub err {
-
     return <<'endof-xpm';
 /* XPM */
 static char * huh[] = {
@@ -384,7 +452,6 @@ static char * huh[] = {
 "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
 "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"};
 endof-xpm
-    
 } # end err
  
 1;
@@ -392,7 +459,7 @@ __END__
 
 =head1 NAME
 
-Tk::Thumbnail - Create a Tk::Table of shrunken images.
+Tk::Thumbnail - Create a grid of shrunken images.
 
 =for pm Tk/Thumbnail.pm
 
@@ -404,7 +471,7 @@ Tk::Thumbnail - Create a Tk::Table of shrunken images.
 
 =head1 DESCRIPTION
 
-Create a B<Table> of thumbnail images, having a default size of
+Create a table of thumbnail images, having a default size of
 32x32 pixels.  Once we have a B<Photo> of an image, shrink it by copying
 a subsample of the original to a blank B<Photo>.
 
@@ -439,13 +506,21 @@ don't shrink images in the Y direction.
 
 =item B<-command>
 
-A callback that's executed on a <Button-1> event over a thumbnail image.  It's
-passed five arguments: the Label widget reference containing the thumbnail
-B<Photo> image, the file name of the B<Photo>, a boolean indicating whether
-or not the the B<Photo> is valid, and the B<Photo>'s pixel width and height.
-A default callback is provided that simply displays the original image in a
-new Toplevel widget.  Clicking Button-1 over that Toplevel opens another
-Toplevel that contains information about the B<Photo>.
+A callback that's executed on a <Button-1> event over a thumbnail
+image.  It's passed six arguments: the Label widget reference
+containing the thumbnail B<Photo> image, the file name of the
+B<Photo>, a boolean indicating whether or not the the B<Photo> is
+valid, the B<Photo>'s pixel width and height, and a boolean indicating
+whether the image is a single frame (Tk::Photo) or has multiple frames
+(Tk::Animation). 
+
+A default callback is provided that simply displays
+the original image in a new Toplevel widget, along with a Get Info
+Button that opens another Toplevel containing information about the
+image.  If the image has multiple frames, then QuickTime-like controller
+buttons are also presented to view the animation, and the left and right arrow
+keys single-step the animation frame-by-frame. The space bar toggles the play/pause
+button.
 
 =back
 
@@ -462,12 +537,12 @@ preparation for re-populating the Thumbnail with new data.
 
 =head1 EXAMPLE
 
- $thumb = $mw->Thumbnail(-images => [<images/*.ppm>], -ilabels => 1);
+ $thumb = $mw->Thumbnail( -images => [ <images/*.ppm> ], -ilabels => 1 );
 
 
 =head1 AUTHOR
 
-Stephen.O.Lidie@Lehigh.EDU
+sol0@Lehigh.EDU
 
 Copyright (C) 2001 - 2004, Steve Lidie. All rights reserved.
 
@@ -476,7 +551,7 @@ and/or modify it under the same terms as Perl itself.
 
 =head1 KEYWORDS
 
-thumbnail, image
+thumbnail, image, QuickTime, Apple, photo, animation
 
 =cut
 

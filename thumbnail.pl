@@ -5,19 +5,18 @@ use strict;
 
 my $mw = MainWindow->new;
 
-my $thumb = $mw->Thumbnail( -images => [ <images/*> ], -ilabels => 1 );
+my $thumb = $mw->Thumbnail( -images => [ <images/*> ] );
 
 $thumb->pack( qw/ -fill both -expand 1 / );
 $thumb->update;
 $thumb->after(2000);
 
-my $kat = $mw->Photo( -file => 'images/Icon.gif' );
 my $pot = $mw->Photo( -file => Tk->findINC( 'demos/images/teapot.ppm' ) );
-$thumb->configure(-images => [ $kat, $pot ]);
-$thumb->update;
-$thumb->after(2000);
-
-$thumb->configure(-images => [ <images/*> ], -command => sub {print "args=@_!\n"});
-$thumb->update;
+$thumb->configure(
+    -images => [ 'images/Apple_guy.gif', $pot, 'images/Astronaut1.gif' ],
+    -bd     => 2, 
+    -relief => 'solid',
+);
+$mw->Label( -text => 'Press an Apple or an Astronaut, please.' ) ->pack;
 
 MainLoop;

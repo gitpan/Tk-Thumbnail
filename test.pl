@@ -41,4 +41,5 @@ if (Tk::Exists($w)) {
     for (1..5) { skip (1,1,1, "skipped because widget couldn't be created"); }
 }
 
+print "\nNow type:  perl -Mblib thumbnail.pl\n\n";
 1;
