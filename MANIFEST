@@ -4,8 +4,10 @@ README
 Thumbnail.pm
 test.pl
 thumbnail.pl
+tkthumb
 images/Icon.bmp
 images/Icon.gif
 images/Icon.ppm
 images/Icon.xbm
 images/Icon.xpm
+META.yml                                 Module meta-data (added by MakeMaker)

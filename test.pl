@@ -19,7 +19,6 @@ my $class = 'Thumbnail';
 eval "require Tk::$class;";
 ok($@, "", "Error loading Tk::$class");
 
-my $digits = -1.234567890;
 eval { $w = $mw->$class(-images => [<images/*>]); };
 ok($@, "", "can't create $class widget");
 skip($@, Tk::Exists($w), 1, "$class instance does not exist");
