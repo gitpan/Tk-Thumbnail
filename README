@@ -1,0 +1,10 @@
+
+DESCRIPTION
+       Create a Table of thumbnail images, having a default size
+       of 32x32 pixels.  Once we have a Photo of an image, shrink
+       it by copying a subsample of the original to a blank
+       Photo.
+
+Steve Lidie
+2002/09/14
+sol0@lehigh.edu

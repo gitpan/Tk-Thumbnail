@@ -1,0 +1,11 @@
+MANIFEST
+Makefile.PL
+README
+Thumbnail.pm
+test.pl
+thumbnail.pl
+images/Icon.bmp
+images/Icon.gif
+images/Icon.ppm
+images/Icon.xbm
+images/Icon.xpm
