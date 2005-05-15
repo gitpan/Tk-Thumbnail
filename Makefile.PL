@@ -11,6 +11,7 @@ Tk::MMutil::TkExtMakefile(
     },
     PM            => {
         "Thumbnail.pm"              => "\$(INST_LIBDIR)/Thumbnail.pm",
+        "images/info3.png"          => "\$(INST_LIBDIR)/Thumbnail/images/info3.png",
     },
     EXE_FILES     => ['tkthumb'],
     dist          => {COMPRESS => 'gzip', SUFFIX => 'gz'},

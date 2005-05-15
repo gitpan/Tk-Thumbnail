@@ -3,7 +3,7 @@ use Tk;
 use Tk::widgets qw/ Thumbnail /;
 use strict;
 
-die "Usage: tkthumb image-file1 image-file2 ..." unless @ARGV;
+die "Usage: tkthumb (v $Tk::Thumbnail::VERSION) image-file1 image-file2 ..." unless @ARGV;
 
 my $mw = MainWindow->new;
 

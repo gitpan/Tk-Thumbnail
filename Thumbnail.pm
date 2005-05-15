@@ -1,4 +1,4 @@
-$Tk::Thumbnail::VERSION = '1.2';
+$Tk::Thumbnail::VERSION = '1.3';
 
 package Tk::Thumbnail;
 
@@ -6,7 +6,7 @@ use Carp;
 use File::Basename;
 use Tk::widgets qw/ Animation JPEG LabEntry MultiMediaControls Pane PNG /;
 use base qw/ Tk::Derived Tk::Pane /;
-use vars qw/ $err /;
+use vars qw/ $err $info /;
 use strict;
 
 Construct Tk::Widget 'Thumbnail';
@@ -15,7 +15,8 @@ sub ClassInit {
 
     my( $class, $mw ) = @_;
 
-    $err = $mw->Photo( -data => $class->err );
+    $err  = $mw->Photo( -data => $class->err );
+    $info = Tk->findINC( 'Thumbnail/images/info3.png' );
 
     $class->SUPER::ClassInit( $mw );
 
@@ -29,12 +30,14 @@ sub Populate {
 
     $self->ConfigSpecs(
         -background => [ [ 'DESCENDANTS', 'SELF' ], 'background', 'Background',   undef ],
+        -blank      => [ 'PASSIVE',                 'blank',      'Blank',            1 ],
+        -columns    => [ 'PASSIVE',                 'columns',    'Columns',      undef ],
         -command    => [ 'CALLBACK',                'command',    'Command',  \&button1 ],
         -iheight    => [ 'PASSIVE',                 'iheight',    'Iheight',         32 ],
         -images     => [ 'PASSIVE',                 'images',     'Images',       undef ],
         -ilabels    => [ 'PASSIVE',                 'ilabels',    'Ilabels',          1 ],
-        -scrollbars => [ 'PASSIVE',                 'scrollbars', 'Scrollbars',  'osow' ],
         -iwidth     => [ 'PASSIVE',                 'iwidth',     'Iwidth',          32 ],
+        -scrollbars => [ 'PASSIVE',                 'scrollbars', 'Scrollbars',  'osow' ],
     );
 
     $self->OnDestroy(
@@ -48,13 +51,13 @@ sub Populate {
 
 sub button1 {
 
-    my( $label, $file, $bad_photo, $w, $h, $animated ) = @_;
+    my( $label, $file, $bad_photo, $w, $h, $animated, $blank ) = @_;
     return if $bad_photo;
 
     my $tl = $label->Toplevel;
     $tl->withdraw;
     $tl->title( $file );
-    $tl->minsize( 100, 100 );
+    $tl->minsize( 120, 120 );
 
     my ( $can_del, $p );
     if( UNIVERSAL::isa( $file, 'Tk::Photo' ) ) {
@@ -62,6 +65,7 @@ sub button1 {
 	$can_del = 0;
     } elsif( $animated ) {
 	$p = $tl->Animation( -file => $file, -format => 'gif' );
+	$p->blank( $blank );
 	$can_del = 1;
     } else {
 	$p = $tl->Photo( -file => $file );
@@ -102,6 +106,7 @@ sub button1 {
     }
     $ctrls->Button(
         -text    => 'Get Info',
+        -image   => $ctrls->Photo( -file => $info, -format => 'png' ),
         -command => [ \&photo_info, $tl, $file, $p, $w, $h, $animated ],
     )->pack;
     my( $max_width, $max_height ) = ( $tl->vrootwidth - 100, $tl->vrootheight - 100 );
@@ -194,18 +199,27 @@ sub render {
     my $pxy = $self->cget( -iheight ); # thumbnail pixel height
     my $lbl = $self->cget( -ilabels ); # display file names IFF true
     my $img = $self->cget( -images );  # reference to list of images
+    my $col = $self->cget( -columns ); # thumbnails per row
     croak "Tk::Thumbnail: -images not defined." unless defined $img;
 
     for( my $i = $#{@$img}; $i >= 0; $i--  ) {
 	splice @$img, $i, 1 if -d $img->[$i]; # remove directories
     }
     my $count = scalar @$img;
-    my $rows = int( sqrt $count );
-    $rows++ if $rows * $rows != $count;
+    my( $rows, $cols );
+    if( not defined $col ) {
+	$rows = int( sqrt $count );
+	$rows++ if $rows * $rows != $count;
+	$cols = $rows;
+    } else {
+	$cols = $col;
+	$rows = int( $count / $cols + 0.5 );
+	$rows++ if $rows * $cols < $count;
+    }
 
   THUMB:
     foreach my $r ( 0 .. $rows - 1 ) {
-	foreach my $c ( 0 .. $rows - 1 ) {
+	foreach my $c ( 0 .. $cols - 1 ) {
 	    last THUMB if --$count < 0;
 
 	    my $bad_photo = 0;
@@ -258,7 +272,7 @@ sub render {
 	    my $l = $f->Label( -image => $subsample )->grid;
 	    
 	    $l->bind( '<Button-1>' => [ $self => 'Callback', '-command',
-				      $l, $i, $bad_photo, $w, $h, $animated ] );
+				      $l, $i, $bad_photo, $w, $h, $animated, $self->cget( -blank ) ] );
 	    my $name = $photo->cget( -file );
 	    $name = ( $name ) ? basename( $name ) : basename( $i );
 	    $f->Label( -text => $name )->grid if $lbl;
@@ -471,9 +485,20 @@ Tk::Thumbnail - Create a grid of shrunken images.
 
 =head1 DESCRIPTION
 
-Create a table of thumbnail images, having a default size of
-32x32 pixels.  Once we have a B<Photo> of an image, shrink it by copying
-a subsample of the original to a blank B<Photo>.
+Create a table of thumbnail images, having a default size of 32 x 32
+pixels.  Once we have a B<Photo> of an image, shrink it by copying a
+subsample of the original to a blank B<Photo>. Images smaller than the
+thumbnail dimensions are enlarged by zooiming.
+
+Clicking on an image displays it full-size in a separate window with a
+"Get Info" button.  The info window shows the image's width, height,
+path name, size and frame count.
+
+For multi-frame GIFs the image is shown in a Tk:: MultiMediaControls
+window.  This is a QuickTime-like controller widget, allowing you to
+play, pause, rewind, stop, fast-forward and fast-reverse the
+animation.  The Space bar toggles play/pause.  Left and right arrow
+keys step the animation frame by frame, either forward or reverse.
 
 =over 4
 
@@ -522,6 +547,15 @@ buttons are also presented to view the animation, and the left and right arrow
 keys single-step the animation frame-by-frame. The space bar toggles the play/pause
 button.
 
+=item B<-columns>
+
+Number of Photos per row. The column count is computed if not specified.
+
+=item B<-blank>
+
+For animated GIFs, a boolean specifying whether to blank the animation photo between movie
+frames.  Default is 1.
+
 =back
 
 =head1 METHODS
@@ -544,10 +578,17 @@ preparation for re-populating the Thumbnail with new data.
 
 sol0@Lehigh.EDU
 
-Copyright (C) 2001 - 2004, Steve Lidie. All rights reserved.
+Copyright (C) 2001 - 2005, Steve Lidie. All rights reserved.
 
 This program is free software; you can redistribute it
 and/or modify it under the same terms as Perl itself.
+
+=head1 CHANGES
+
+v 1.3 2005/05/15
+
+Added -blank option to make some Tk::Animations look better.
+Added -columns option by renee.baecker@smart-websolutions.de.
 
 =head1 KEYWORDS
 
